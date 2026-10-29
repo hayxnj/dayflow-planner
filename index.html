@@ -29,7 +29,8 @@ main{max-width:900px;margin:auto;padding:8px 14px 90px;display:grid;gap:14px}.ca
 <section class="card wide" id="photoSection">
 <h2>📷 사진으로 일정 추가하기</h2>
 <p class="hint">종이 플래너, 시간표, 일정표 사진을 올리면 글자를 읽어 일정 후보를 만들어요. 추가 전에 내용을 확인하고 수정할 수 있어요.</p>
-<label for="photo">플래너 이미지 선택</label><input id="photo" type="file" accept="image/*" capture="environment">
+<label for="photo">플래너 이미지 선택</label>
+<input id="photo" type="file" accept="image/*">
 <div class="row" style="margin-top:10px"><button id="readPhoto">이미지에서 일정 읽기</button><span class="hint">첫 사용 시 OCR 엔진을 불러오려면 인터넷이 필요해요.</span></div>
 <div id="ocrStatus" class="status" aria-live="polite"></div>
 <label for="ocrText">읽어온 텍스트 (필요하면 수정)</label><textarea id="ocrText" rows="5" placeholder="이미지를 선택한 뒤 ‘이미지에서 일정 읽기’를 눌러주세요."></textarea>
