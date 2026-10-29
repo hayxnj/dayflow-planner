@@ -308,6 +308,7 @@ function renderCalendar(){
 }
 
 
+let editingTodoId = null;
 function renderTasks() {
   $('agendaTitle').textContent = enDate(selected);
 
@@ -351,88 +352,140 @@ function renderTasks() {
     });
   }
 
-  function drawTodos(items) {
-    const box = $('todoTasks');
-    box.innerHTML = '';
 
-    if (!items.length) {
-      box.innerHTML = '<div class="empty">이 날짜에 할 일이 없어요.</div>';
-      return;
-    }
+function drawTodos(items) {
+  const box = $('todoTasks');
+  box.innerHTML = '';
 
-    const groups = [...subjects.filter(s => s !== '기타'), '기타'];
+  if (!items.length) {
+    box.innerHTML = '<div class="empty">이 날짜에 할 일이 없어요.</div>';
+  }
 
-    groups.forEach(subject => {
-      const groupItems = items.filter(t => (t.subject || '기타') === subject);
-      const section = document.createElement('div');
-      section.style.marginTop = '12px';
+  const groups = [...subjects.filter(s => s !== '기타'), '기타'];
 
-      const heading = document.createElement('h3');
-      heading.textContent = subject;
-      section.appendChild(heading);
+  groups.forEach(subject => {
+    const groupItems = items.filter(
+      t => (t.subject || '기타') === subject
+    );
 
-      if (!groupItems.length) {
-        const empty = document.createElement('div');
-        empty.className = 'hint';
-        empty.textContent = '할 일이 없어요.';
-        section.appendChild(empty);
-      }
+    if (!groupItems.length) return;
 
-      groupItems.forEach(t => {
-        const row = document.createElement('div');
-        row.className = 'task' + (t.done ? ' done' : '');
+    const section = document.createElement('div');
+    section.style.marginTop = '12px';
 
-        const check = document.createElement('input');
-        check.type = 'checkbox';
-        check.checked = !!t.done;
-        check.setAttribute('aria-label', '완료');
-        check.onchange = e => {
-          t.done = e.target.checked;
-          save();
-        };
+    const heading = document.createElement('h3');
+    heading.textContent = subject;
+    section.appendChild(heading);
 
-        const title = document.createElement('input');
-        title.value = t.title;
-        title.setAttribute('aria-label', '할 일 이름');
-        title.style.width = '100%';
-        title.onchange = () => {
-          t.title = title.value.trim() || t.title;
-          save();
-        };
+    groupItems.forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'task' + (t.done ? ' done' : '');
 
-        const subjectSelect = document.createElement('select');
-        subjectSelect.setAttribute('aria-label', '과목 선택');
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = !!t.done;
+      check.setAttribute('aria-label', '완료');
+      check.onchange = e => {
+        t.done = e.target.checked;
+        save();
+      };
+
+      const content = document.createElement('div');
+      content.className = 'grow';
+
+      const title = document.createElement('div');
+      title.textContent = t.title;
+      title.style.fontWeight = '600';
+      title.style.overflowWrap = 'anywhere';
+      if (t.done) title.style.textDecoration = 'line-through';
+
+      const subjectTag = document.createElement('span');
+      subjectTag.textContent = subject;
+      subjectTag.style.fontSize = '12px';
+      subjectTag.style.opacity = '0.7';
+
+      content.append(title, subjectTag);
+
+      const edit = document.createElement('button');
+      edit.className = 'secondary';
+      edit.textContent = '✏️ 수정';
+      edit.onclick = () => {
+        editingTodoId = t.id;
+        renderTasks();
+      };
+
+      const remove = document.createElement('button');
+      remove.className = 'secondary';
+      remove.textContent = '×';
+      remove.setAttribute('aria-label', '삭제');
+      remove.onclick = () => {
+        tasks = tasks.filter(x => x.id !== t.id);
+        if (editingTodoId === t.id) editingTodoId = null;
+        save();
+      };
+
+      row.append(check, content, edit, remove);
+      section.appendChild(row);
+
+      // 수정 버튼을 눌렀을 때만 편집 칸 표시
+      if (editingTodoId === t.id) {
+        const editor = document.createElement('div');
+        editor.style.cssText =
+          'margin-top:10px;padding:14px;border:1px solid var(--border,#e7eaf0);border-radius:12px;';
+
+        const editTitle = document.createElement('input');
+        editTitle.value = t.title;
+        editTitle.placeholder = '할 일 이름';
+        editTitle.style.cssText =
+          'box-sizing:border-box;width:100%;padding:10px;margin-bottom:10px;';
+
+        const editSubject = document.createElement('select');
+        editSubject.style.cssText =
+          'padding:8px;margin-bottom:10px;max-width:100%;';
+
         subjects.forEach(s => {
           const option = document.createElement('option');
           option.value = s;
           option.textContent = s;
-          subjectSelect.appendChild(option);
+          editSubject.appendChild(option);
         });
-        subjectSelect.value = subjects.includes(t.subject) ? t.subject : '기타';
-        subjectSelect.onchange = () => {
-          t.subject = subjectSelect.value;
+        editSubject.value = subjects.includes(t.subject)
+          ? t.subject
+          : '기타';
+
+        const actions = document.createElement('div');
+        actions.style.cssText =
+          'display:flex;gap:8px;margin-top:8px;';
+
+        const saveEdit = document.createElement('button');
+        saveEdit.textContent = '저장';
+        saveEdit.onclick = () => {
+          t.title = editTitle.value.trim() || t.title;
+          t.subject = editSubject.value;
+          editingTodoId = null;
           save();
         };
 
-        const remove = document.createElement('button');
-        remove.className = 'secondary';
-        remove.textContent = '×';
-        remove.onclick = () => {
-          tasks = tasks.filter(x => x.id !== t.id);
-          save();
+        const cancelEdit = document.createElement('button');
+        cancelEdit.className = 'secondary';
+        cancelEdit.textContent = '취소';
+        cancelEdit.onclick = () => {
+          editingTodoId = null;
+          renderTasks();
         };
 
-        const content = document.createElement('div');
-        content.className = 'grow';
-        content.append(title, subjectSelect);
-
-        row.append(check, content, remove);
-        section.appendChild(row);
-      });
-
-      box.appendChild(section);
+        actions.append(saveEdit, cancelEdit);
+        editor.append(editTitle, editSubject, actions);
+        section.appendChild(editor);
+      }
     });
-  }
+
+    box.appendChild(section);
+  });
+
+  renderSubjectManager();
+}
+
 
   drawEvents(dayEvents);
   drawTodos(dayTodos);
