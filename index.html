@@ -37,6 +37,10 @@ main{max-width:900px;margin:auto;padding:8px 14px 90px;display:grid;gap:14px}.ca
 <input id="photo" type="file" accept="image/*">
 <div class="row" style="margin-top:10px"><button id="readPhoto">이미지에서 일정 읽기</button><span class="hint">첫 사용 시 OCR 엔진을 불러오려면 인터넷이 필요해요.</span></div>
 <div id="ocrStatus" class="status" aria-live="polite"></div>
+ <div id="photoCandidates" style="margin-top:12px"></div>
+<button id="saveAllPhotoTasks" type="button" style="margin-top:10px">
+  선택한 항목 모두 저장
+</button>
 <label for="ocrText">읽어온 텍스트 (필요하면 수정)</label><textarea id="ocrText" rows="5" placeholder="이미지를 선택한 뒤 ‘이미지에서 일정 읽기’를 눌러주세요."></textarea>
 <div class="two">
 <div><label for="photoDate">일정 날짜</label><input type="date" id="photoDate"></div>
@@ -206,17 +210,165 @@ $('readPhoto').onclick=async()=>{
  catch(e){$('ocrStatus').textContent='인식에 실패했어요. 더 선명한 사진으로 다시 시도해 주세요.'}
  finally{$('readPhoto').disabled=false}
 };
-function suggestCandidates(fillTitle=true){
- const txt=val('ocrText').trim();if(!txt)return alert('먼저 이미지에서 글자를 읽거나 텍스트를 입력해 주세요.');
- const lines=txt.split(/\n+/).map(s=>s.trim()).filter(Boolean);
- // Find likely times and attach the nearest text line as a suggested event.
- const found=[];
- lines.forEach((line,i)=>{const m=line.match(/(?:^|\b)([01]?\d|2[0-3])\s*[:.시]\s*([0-5]\d)?\s*(a\.?m\.?|p\.?m\.?)?/i)||line.match(/\b(1[0-2]|0?[1-9])\s*(a\.?m\.?|p\.?m\.?)\b/i);
- if(m){let hh=+(m[1]),mm=m[2]&&/^\d+$/.test(m[2])?+m[2]:0,amp=(m[3]||m[2]||'').toLowerCase();if(amp.includes('p')&&hh<12)hh+=12;if(amp.includes('a')&&hh===12)hh=0;const clean=line.replace(m[0],' ').replace(/\s+/g,' ').trim();found.push({time:`${pad(hh)}:${pad(mm)}`,title:clean||lines[i+1]||'플래너 일정'})}});
- if(found.length){const first=found[0];$('photoTime').value=first.time;$('photoTitle').value=first.title.slice(0,100);$('ocrStatus').textContent=`시간이 포함된 일정 후보 ${found.length}개를 찾았어요. 현재 입력칸에는 첫 번째 후보가 들어갔어요. 한 개씩 확인해 추가해 주세요.`}
- else {if(fillTitle)$('photoTitle').value=lines[0]?.slice(0,100)||'';$('ocrStatus').textContent='시간을 확실히 찾지 못했어요. 텍스트를 참고해 일정 이름과 시간을 직접 입력해 주세요.'}
+
+function suggestCandidates(fillTitle = true) {
+  const txt = val('ocrText').trim();
+  if (!txt) {
+    alert('먼저 이미지에서 글자를 읽거나 텍스트를 입력해 주세요.');
+    return;
+  }
+
+  const lines = txt.split(/\n+/).map(s => s.trim()).filter(Boolean);
+  const candidates = [];
+
+  function parseTime(text) {
+    const m = text.match(/(?:^|\s)(오전|오후)?\s*(\d{1,2})\s*[:.시]\s*(\d{1,2})?\s*(분)?\s*(오전|오후|a\.?m\.?|p\.?m\.?)?/i)
+      || text.match(/(?:^|\s)(오전|오후|a\.?m\.?|p\.?m\.?)\s*(\d{1,2})\s*시?/i);
+
+    if (!m) return null;
+
+    let hour, minute = 0, period = '';
+    if (/^\d+$/.test(m[2] || '')) {
+      hour = Number(m[2]);
+      minute = Number(m[3] || 0);
+      period = (m[1] || m[5] || '').toLowerCase();
+    } else {
+      period = (m[1] || '').toLowerCase();
+      hour = Number(m[2]);
+    }
+
+    if (hour > 23 || minute > 59) return null;
+    if ((period.includes('오후') || period.includes('p')) && hour < 12) hour += 12;
+    if ((period.includes('오전') || period.includes('a')) && hour === 12) hour = 0;
+
+    return {
+      time: `${pad(hour)}:${pad(minute)}`,
+      clean: text.replace(m[0], ' ').replace(/\s+/g, ' ').trim()
+    };
+  }
+
+  lines.forEach(line => {
+    const parsed = parseTime(line);
+    const dateMatch = line.match(/\b(20\d{2})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})\s*일?/)
+      || line.match(/\b(\d{1,2})[-./월]\s*(\d{1,2})\s*일?/);
+
+    let date = val('photoDate') || selected;
+    if (dateMatch) {
+      if (dateMatch[3]) {
+        date = `${dateMatch[1]}-${pad(Number(dateMatch[2]))}-${pad(Number(dateMatch[3]))}`;
+      } else {
+        date = `${new Date().getFullYear()}-${pad(Number(dateMatch[1]))}-${pad(Number(dateMatch[2]))}`;
+      }
+    }
+
+    let title = parsed ? parsed.clean : line;
+    title = title.replace(/^[\s\-•*□☐☑✓✔]+/, '').trim();
+    if (!title || /^\d+$/.test(title)) return;
+
+    candidates.push({
+      title: title.slice(0, 100),
+      date,
+      time: parsed ? parsed.time : '',
+      type: parsed ? 'event' : 'todo'
+    });
+  });
+
+  if (!candidates.length) {
+    $('ocrStatus').textContent = '항목을 찾지 못했어요. 인식된 텍스트를 직접 확인해 주세요.';
+    return;
+  }
+
+  const preview = candidates.map((item, i) =>
+    `${i + 1}. [${item.type === 'event' ? '일정 ' + item.time : '할 일'}] ${item.date} — ${item.title}`
+  ).join('\n');
+
+  $('ocrStatus').textContent =
+    `항목 ${candidates.length}개를 찾았어요. 아래 목록을 확인해 주세요.\n` +
+    preview +
+    '\n\n현재는 미리보기만 만들었어요. 자동 저장되지는 않았어요.';
+showPhotoCandidates(candidates);
 }
+
 $('suggestFromText').onclick=()=>suggestCandidates(true);
+ 
+let photoCandidates = [];
+
+function showPhotoCandidates(items) {
+  photoCandidates = items;
+  const box = $('photoCandidates');
+  box.innerHTML = '';
+
+  items.forEach((item, index) => {
+    const row = document.createElement('div');
+    row.className = 'task';
+    row.style.marginTop = '8px';
+
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = true;
+    check.dataset.index = index;
+    check.setAttribute('aria-label', '저장할 항목 선택');
+
+    const fields = document.createElement('div');
+    fields.className = 'grow';
+
+    const title = document.createElement('input');
+    title.value = item.title;
+    title.placeholder = '항목 이름';
+    title.style.width = '100%';
+
+    const date = document.createElement('input');
+    date.type = 'date';
+    date.value = item.date || val('photoDate') || selected;
+    date.style.width = '100%';
+    date.style.marginTop = '6px';
+
+    const kind = document.createElement('div');
+    kind.className = 'meta';
+    kind.textContent = item.type === 'event'
+      ? '일정 · ' + item.time
+      : '할 일';
+
+    fields.append(kind, title, date);
+    row.append(check, fields);
+    box.appendChild(row);
+
+    item._check = check;
+    item._titleInput = title;
+    item._dateInput = date;
+  });
+
+  $('ocrStatus').textContent =
+    `${items.length}개 항목을 찾았어요. 저장할 항목을 선택하고 이름과 날짜를 확인해 주세요.`;
+}
+
+$('saveAllPhotoTasks').onclick = () => {
+  const chosen = photoCandidates.filter(item =>
+    item._check.checked && item._titleInput.value.trim()
+  );
+
+  if (!chosen.length) {
+    alert('저장할 항목을 하나 이상 선택해 주세요.');
+    return;
+  }
+
+  chosen.forEach(item => {
+    const isEvent = item.type === 'event';
+    addTask({
+      title: item._titleInput.value.trim(),
+      date: item._dateInput.value || selected,
+      time: isEvent ? item.time : '',
+      duration: isEvent ? Number(val('photoDuration')) : 0,
+      type: isEvent ? 'event' : 'todo',
+      source: 'photo import'
+    });
+  });
+
+  photoCandidates = [];
+  $('photoCandidates').innerHTML = '';
+  $('ocrStatus').textContent = `${chosen.length}개 항목을 저장했어요.`;
+};
+
 $('addPhotoTask').onclick=()=>{if(!val('photoTitle').trim())return alert('일정 이름을 입력하거나 텍스트에서 후보를 만들어 주세요.');addTask({title:val('photoTitle').trim(),date:val('photoDate')||selected,time:val('photoTime')||'09:00',duration:+val('photoDuration'),source:'photo import'});$('photoTitle').value='';$('ocrStatus').textContent='일정을 저장했어요. 달력에서 확인할 수 있어요.'};
 const dayValues=[1,2,3,4,5,6,0];
 $('weekdayChecks').innerHTML=weekdays.map((d,i)=>`<label style="display:flex;align-items:center;gap:4px;margin:0;color:var(--ink)"><input type="checkbox" value="${dayValues[i]}" ${i<5?'checked':''} style="width:auto"> ${d}</label>`).join('');
