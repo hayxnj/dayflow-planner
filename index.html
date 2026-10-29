@@ -87,6 +87,31 @@ main{max-width:900px;margin:auto;padding:8px 14px 90px;display:grid;gap:14px}.ca
   border-radius: 9px;
 }
 
+  
+/* 할 일 카드의 회색 박스 제거 */
+#todoTasks .task {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 10px 2px !important;
+  margin-top: 4px !important;
+  border-bottom: 1px solid var(--border, #e7eaf0) !important;
+}
+
+/* 할 일 제목은 입력창 대신 깔끔한 글씨로 */
+#todoTasks .grow {
+  background: transparent !important;
+}
+
+/* 과목별 영역도 불필요한 박스 제거 */
+#todoTasks > div {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
 </style>
 </head>
 <body>
