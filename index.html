@@ -889,7 +889,90 @@ $('addPhotoTask').onclick=()=>{if(!val('photoTitle').trim())return alert('일정
 const dayValues=[1,2,3,4,5,6,0];
 $('weekdayChecks').innerHTML=weekdays.map((d,i)=>`<label style="display:flex;align-items:center;gap:4px;margin:0;color:var(--ink)"><input type="checkbox" value="${dayValues[i]}" ${i<5?'checked':''} style="width:auto"> ${d}</label>`).join('');
 $('saveRoutine').onclick=()=>{const title=val('routineTitle').trim();const days=[...$('weekdayChecks').querySelectorAll('input:checked')].map(x=>+x.value);if(!title||!days.length)return alert('루틴 이름과 반복 요일을 선택해 주세요.');const r={id:Date.now(),title,time:val('routineTime'),duration:+val('routineDuration'),days};routines.push(r);let start=new Date(selected+'T12:00:00');for(let i=0;i<84;i++){let d=new Date(start);d.setDate(d.getDate()+i);if(days.includes(d.getDay()))tasks.push({id:Date.now()+Math.random(),title,date:iso(d),time:r.time,duration:r.duration,done:false,source:'routine'})}save();$('routineTitle').value=''};
-function renderRoutines(){$('routines').innerHTML=routines.map(r=>`<div class="task"><div class="grow"><div class="tasktitle">${escapeHtml(r.title)}</div><div class="meta">${formatTime(r.time)} · ${r.days.map(d=>weekdays[dayValues.indexOf(d)]).join(', ')}</div></div><button class="secondary" data-id="${r.id}">삭제</button></div>`).join('')||'<div class="hint">저장된 반복 루틴이 없어요.</div>';$('routines').querySelectorAll('button').forEach(b=>b.onclick=()=>{routines=routines.filter(r=>r.id!==+b.dataset.id);save()})}
+
+function renderRoutines() {
+  const box = $('routines');
+  box.innerHTML = '';
+
+  if (!routines.length) {
+    box.innerHTML = '<div class="hint">저장된 반복 루틴이 없어요.</div>';
+    return;
+  }
+
+  routines.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'task';
+
+    const content = document.createElement('div');
+    content.className = 'grow';
+
+    const title = document.createElement('div');
+    title.className = 'tasktitle';
+    title.textContent = r.title;
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent =
+      `${formatTime(r.time)} · ${
+        (r.days || []).map(d => weekdays[dayValues.indexOf(d)]).join(', ')
+      } · ${r.duration || 60}분`;
+
+    content.append(title, meta);
+
+    const edit = document.createElement('button');
+    edit.className = 'secondary';
+    edit.textContent = '수정';
+    edit.onclick = () => {
+      const newTitle = prompt('루틴 이름', r.title);
+      if (newTitle === null) return;
+
+      const cleanTitle = newTitle.trim();
+      if (!cleanTitle) {
+        alert('루틴 이름을 입력해 주세요.');
+        return;
+      }
+
+      const newTime = prompt('시작 시간 (예: 18:00)', r.time || '18:00');
+      if (newTime === null) return;
+
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(newTime)) {
+        alert('시간은 18:00 형식으로 입력해 주세요.');
+        return;
+      }
+
+      const newDuration = prompt(
+        '소요 시간 (분)',
+        String(r.duration || 60)
+      );
+      if (newDuration === null) return;
+
+      const duration = Number(newDuration);
+      if (!Number.isInteger(duration) || duration < 1) {
+        alert('소요 시간은 1분 이상의 정수로 입력해 주세요.');
+        return;
+      }
+
+      r.title = cleanTitle;
+      r.time = newTime;
+      r.duration = duration;
+      save();
+    };
+
+    const remove = document.createElement('button');
+    remove.className = 'secondary';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', '루틴 삭제');
+    remove.onclick = () => {
+      if (!confirm(`'${r.title}' 루틴을 삭제할까요?`)) return;
+      routines = routines.filter(item => item.id !== r.id);
+      save();
+    };
+
+    row.append(content, edit, remove);
+    box.appendChild(row);
+  });
+}
+
 function renderReminders(){$('reminders').innerHTML=reminders.map(r=>`<div class="task"><div class="grow"><div class="tasktitle">${escapeHtml(r.title)}</div><div class="meta">${enDate(r.date)} · ${formatTime(r.time)}</div></div><button class="secondary" data-id="${r.id}">삭제</button></div>`).join('')||'<div class="hint">저장된 평가 알림이 없어요.</div>'; $('reminders').querySelectorAll('button').forEach(b=>b.onclick=()=>{reminders=reminders.filter(r=>r.id!==+b.dataset.id);save()})}
 $('addReminder').onclick=()=>{const title=val('reminderTitle').trim();if(!title||!val('reminderDate'))return alert('평가 이름과 날짜를 입력해 주세요.');reminders.push({id:Date.now(),title,date:val('reminderDate'),time:val('reminderTime')});save();$('reminderTitle').value=''};
 $('notifyPermission').onclick=async()=>{if(!('Notification'in window))return alert('이 브라우저는 알림 권한 설정을 지원하지 않아요.');const p=await Notification.requestPermission();alert(p==='granted'?'알림 권한이 허용됐어요. 이 버전은 앱을 열었을 때 일정 확인을 중심으로 동작해요.':'브라우저 설정에서 알림 권한을 변경할 수 있어요.')};
