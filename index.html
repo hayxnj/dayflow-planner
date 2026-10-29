@@ -136,6 +136,28 @@ main{max-width:900px;margin:auto;padding:8px 14px 90px;display:grid;gap:14px}.ca
   box-shadow: none !important;
 }
 
+/* 할 일의 수정·삭제 버튼을 심플하게 */
+#todoTasks .task button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
+  padding: 6px 8px !important;
+  color: var(--text, #555) !important;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#todoTasks .task button:hover {
+  background: #f1f1f5 !important;
+}
+
+/* 버튼을 눌렀을 때도 과한 테두리 방지 */
+#todoTasks .task button:focus {
+  outline: none;
+  box-shadow: none !important;
+}
+
 </style>
 </head>
 <body>
