@@ -24,7 +24,11 @@ main{max-width:900px;margin:auto;padding:8px 14px 90px;display:grid;gap:14px}.ca
 </section>
 <section class="card">
 <h2 id="agendaTitle">Today’s schedule</h2>
+<h3>📅 일정</h3>
 <div id="tasks"></div>
+
+<h3>☑️ 할 일</h3>
+<div id="todoTasks"></div>
 </section>
 <section class="card wide" id="photoSection">
 <h2>📷 사진으로 일정 추가하기</h2>
@@ -127,11 +131,62 @@ function renderCalendar(){
  for(let i=0;i<offset;i++) $('calendar').insertAdjacentHTML('beforeend','<div></div>');
  for(let d=1;d<=days;d++){let key=iso(new Date(viewDate.getFullYear(),viewDate.getMonth(),d));let b=document.createElement('button');b.className='day'+(key===selected?' selected':'')+(key===iso(new Date())?' today':'')+(tasks.some(t=>t.date===key)?' has':'');b.textContent=d;b.onclick=()=>{selected=key;render()};$('calendar').appendChild(b)}
 }
-function renderTasks(){
- $('agendaTitle').textContent=enDate(selected);
- const dayTasks=tasks.filter(t=>t.date===selected).sort((a,b)=>a.time.localeCompare(b.time));
- $('tasks').innerHTML=dayTasks.length?'':'<div class="empty">이 날짜에는 아직 일정이 없어요.</div>';
- dayTasks.forEach(t=>{const el=document.createElement('div');el.className='task'+(t.done?' done':'');el.innerHTML=`<input type="checkbox" ${t.done?'checked':''} aria-label="완료"><div class="time">${formatTime(t.time)}</div><div class="grow"><div class="tasktitle"></div><div class="meta">${t.duration} min${t.source?' · '+t.source:''}</div></div><button class="secondary" style="padding:5px 9px">×</button>`;el.querySelector('.tasktitle').textContent=t.title;el.querySelector('input').onchange=e=>{t.done=e.target.checked;save()};el.querySelector('button').onclick=()=>{tasks=tasks.filter(x=>x.id!==t.id);save()};$('tasks').appendChild(el)});
+
+function renderTasks() {
+  $('agendaTitle').textContent = enDate(selected);
+
+  const dayItems = tasks.filter(t => t.date === selected);
+  const dayEvents = dayItems
+    .filter(t => t.type !== 'todo')
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  const dayTodos = dayItems.filter(t => t.type === 'todo');
+
+  function drawItems(items, containerId, isTodo) {
+    const container = $(containerId);
+    container.innerHTML = '';
+
+    if (!items.length) {
+      container.innerHTML = '<div class="empty">' +
+        (isTodo ? '이 날짜에 할 일이 없어요.' : '이 날짜에 일정이 없어요.') +
+        '</div>';
+      return;
+    }
+
+    items.forEach(t => {
+      const el = document.createElement('div');
+      el.className = 'task' + (t.done ? ' done' : '');
+
+      const timeLabel = isTodo ? '' :
+        `<div class="time">${formatTime(t.time)}</div>`;
+
+      el.innerHTML = `
+        <input type="checkbox" ${t.done ? 'checked' : ''} aria-label="완료">
+        ${timeLabel}
+        <div class="grow">
+          <div class="tasktitle"></div>
+          <div class="meta">${!isTodo && t.duration ? t.duration + ' min' : ''}
+          ${t.source ? ' · ' + t.source : ''}</div>
+        </div>
+        <button class="secondary" style="padding:5px 9px">×</button>`;
+
+      el.querySelector('.tasktitle').textContent = t.title;
+
+      el.querySelector('input').onchange = e => {
+        t.done = e.target.checked;
+        save();
+      };
+
+      el.querySelector('button').onclick = () => {
+        tasks = tasks.filter(x => x.id !== t.id);
+        save();
+      };
+
+      container.appendChild(el);
+    });
+  }
+
+  drawItems(dayEvents, 'tasks', false);
+  drawItems(dayTodos, 'todoTasks', true);
 }
 function formatTime(s){if(!s)return '';let [h,m]=s.split(':').map(Number);return `${h%12||12}:${pad(m)} ${h<12?'a.m.':'p.m.'}`}
 function render(){renderCalendar();renderTasks();renderReminders();renderRoutines()}
