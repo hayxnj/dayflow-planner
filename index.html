@@ -215,7 +215,7 @@ async function cloudPull() {
 
   const { data, error } = await supabaseClient
     .from('dayflow_data')
-    .select('payload')
+    .select('payload, updated_at')
     .eq('user_id', cloudUser.id)
     .maybeSingle();
 
@@ -227,6 +227,8 @@ async function cloudPull() {
   if (data?.payload) {
     const remote = data.payload;
 
+   lastCloudUpdatedAt = data.updated_at;
+   
     tasks = remote.tasks || [];
     routines = remote.routines || [];
     reminders = remote.reminders || [];
@@ -436,6 +438,29 @@ save = function () {
   }
 };
 
+ // 다른 기기의 변경 사항을 5초마다 확인
+setInterval(async () => {
+  if (!cloudUser || !cloudReady || syncing) return;
+  if (autoSaveTimer !== null) return;
+
+  const { data, error } = await supabaseClient
+    .from('dayflow_data')
+    .select('updated_at')
+    .eq('user_id', cloudUser.id)
+    .maybeSingle();
+
+  if (error || !data?.updated_at) return;
+
+  const remoteTime = new Date(data.updated_at).getTime();
+  const knownTime = lastCloudUpdatedAt
+    ? new Date(lastCloudUpdatedAt).getTime()
+    : 0;
+
+  if (remoteTime > knownTime) {
+    await cloudPull();
+  }
+}, 5000);
+ 
 loadCloudConfig();
 
 // 페이지와 Supabase 라이브러리가 준비된 후 자동 연결
