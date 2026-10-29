@@ -383,6 +383,35 @@ $('readPhoto').onclick=async()=>{
  finally{$('readPhoto').disabled=false}
 };
 
+ 
+function detectSubject(title) {
+  const text = title.toLowerCase();
+
+  const keywords = {
+    '국어': ['국어', '문학', '비문학', '독서', '문법', '시조'],
+    '영어': ['영어', 'english', '단어', '영단어', '영어 듣기'],
+    '수학': ['수학', '수학 문제', '수학 문제집', '방정식', '함수', '기하'],
+    '과학': ['과학', '물리', '화학', '생명과학', '생물', '지구과학'],
+    '사회': ['사회', '역사', '한국사', '세계사', '지리', '경제', '정치']
+  };
+
+  // 사용자가 직접 추가한 과목 이름도 인식
+  for (const subject of subjects) {
+    if (subject !== '기타' && text.includes(subject.toLowerCase())) {
+      return subject;
+    }
+  }
+
+  // 기본 과목 키워드로 분류
+  for (const [subject, words] of Object.entries(keywords)) {
+    if (words.some(word => text.includes(word))) {
+      if (subjects.includes(subject)) return subject;
+    }
+  }
+
+  return '기타';
+}
+
 function suggestCandidates(fillTitle = true) {
   const txt = val('ocrText').trim();
   if (!txt) {
@@ -458,6 +487,12 @@ function suggestCandidates(fillTitle = true) {
     `항목 ${candidates.length}개를 찾았어요. 아래 목록을 확인해 주세요.\n` +
     preview +
     '\n\n현재는 미리보기만 만들었어요. 자동 저장되지는 않았어요.';
+candidates.forEach(item => {
+  if (item.type === 'todo') {
+    item.subject = detectSubject(item.title);
+  }
+});
+
 showPhotoCandidates(candidates);
 }
 
@@ -501,7 +536,32 @@ function showPhotoCandidates(items) {
       ? '일정 · ' + item.time
       : '할 일';
 
-    fields.append(kind, title, date);
+    
+if (item.type === 'todo') {
+  const subjectSelect = document.createElement('select');
+  subjectSelect.setAttribute('aria-label', '과목 선택');
+
+  subjects.forEach(subject => {
+    const option = document.createElement('option');
+    option.value = subject;
+    option.textContent = subject;
+    subjectSelect.appendChild(option);
+  });
+
+  subjectSelect.value = subjects.includes(item.subject)
+    ? item.subject
+    : '기타';
+
+  subjectSelect.onchange = () => {
+    item.subject = subjectSelect.value;
+  };
+
+  item._subjectSelect = subjectSelect;
+  fields.append(kind, title, date, subjectSelect);
+} else {
+  fields.append(kind, title, date);
+}
+
     row.append(check, fields);
     box.appendChild(row);
 
@@ -532,7 +592,9 @@ $('saveAllPhotoTasks').onclick = () => {
       time: isEvent ? item.time : '',
       duration: isEvent ? Number(val('photoDuration')) : 0,
       type: isEvent ? 'event' : 'todo',
-      source: 'photo import'
+subject: isEvent ? '' :
+  (item._subjectSelect ? item._subjectSelect.value : (item.subject || '기타')),
+source: 'photo import'
     });
   });
 
