@@ -180,6 +180,34 @@ main{max-width:900px;margin:auto;padding:8px 14px 90px;display:grid;gap:14px}.ca
   box-shadow: none !important;
 }
 
+  
+/* 과목 관리 영역을 깔끔하게 */
+#subjectManagerCard .subject-manager,
+#subjectManagerCard #subjectList {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 과목 관리 버튼 */
+#subjectManagerCard button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
+  cursor: pointer;
+}
+
+#subjectManagerCard button:hover {
+  background: #f3f3f7 !important;
+}
+
+/* 과목 목록 항목의 바깥 박스 제거 */
+#subjectManagerCard #subjectList > div {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 </style>
 </head>
 <body>
@@ -197,17 +225,24 @@ main{max-width:900px;margin:auto;padding:8px 14px 90px;display:grid;gap:14px}.ca
 
 <h3>☑️ 할 일</h3>
 <div id="todoTasks"></div>
- 
-<div class="subject-manager" style="margin:12px 0">
-  <label for="newSubject">과목 추가</label>
-  <div class="row">
-    <input id="newSubject" placeholder="예: 수학, 영어, 역사">
-    <button id="addSubject" type="button">추가</button>
-  </div>
-  <div id="subjectList" style="margin-top:8px"></div>
-</div>
 
 </section>
+
+  
+<section class="card" id="subjectManagerCard">
+  <h2>📚 과목 관리</h2>
+  <p class="hint">과목을 추가하거나 이름을 변경하고 삭제할 수 있어요.</p>
+
+  <div class="subject-manager">
+    <label for="newSubject">새 과목 이름</label>
+    <div class="row">
+      <input id="newSubject" placeholder="예: 수학, 영어, 역사">
+      <button id="addSubject" type="button">＋ 추가</button>
+    </div>
+    <div id="subjectList" style="margin-top:12px"></div>
+  </div>
+</section>
+
 <section class="card wide" id="photoSection">
 <h2>📷 사진으로 일정 추가하기</h2>
 <p class="hint">종이 플래너, 시간표, 일정표 사진을 올리면 글자를 읽어 일정 후보를 만들어요. 추가 전에 내용을 확인하고 수정할 수 있어요.</p>
@@ -378,7 +413,8 @@ function renderSubjectManager() {
 
     const remove = document.createElement('button');
     remove.className = 'secondary';
-    remove.textContent = '삭제';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', '과목 삭제');
     remove.onclick = () => {
       if (subject === '기타') {
         return alert('기본 과목인 기타는 삭제할 수 없어요.');
