@@ -233,7 +233,18 @@ main{max-width:900px;margin:auto;padding:8px 14px 90px;display:grid;gap:14px}.ca
 <h2>＋ 일정 직접 추가</h2>
 <label for="newTitle">일정 이름</label><input id="newTitle" placeholder="예: 과학 과제">
 <div class="two"><div><label for="newDate">날짜</label><input type="date" id="newDate"></div><div><label for="newTime">시간</label><input type="time" id="newTime" value="16:00"></div></div>
-<label for="newDuration">소요 시간</label><select id="newDuration"><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="90">1 hour 30 min</option><option value="120">2 hours</option></select>
+<label for="newDuration">소요 시간</label>
+<input
+  id="newDuration"
+  type="number"
+  min="1"
+  step="1"
+  value="30"
+  placeholder="분"
+  style="width:100px"
+/>
+<span>분</span>
+
 <div class="row" style="margin-top:12px"><button id="addTask">일정 저장</button></div>
 </section>
 <section class="card">
