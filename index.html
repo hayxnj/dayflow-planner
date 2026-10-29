@@ -172,102 +172,263 @@ $('notifyPermission').onclick=async()=>{if(!('Notification'in window))return ale
 $('makeStudy').onclick=()=>{const title=val('bookTitle').trim()||'Study';const chapters=val('toc').split(/\n+/).map(s=>s.trim()).filter(Boolean);const amount=Math.max(1,+val('studyAmount')||1),per=Math.max(1,+val('studyPerDay')||1);if(!chapters.length)return alert('목차를 한 줄에 한 챕터씩 입력해 주세요.');const chosen=chapters.slice(0,Math.min(amount,chapters.length));let d=new Date((val('studyStart')||selected)+'T12:00:00');chosen.forEach((ch,i)=>{if(i>0&&i%per===0)d.setDate(d.getDate()+1);tasks.push({id:Date.now()+Math.random(),title:`${title}: ${ch}`,date:iso(d),time:val('studyTime')||'17:00',duration:60,done:false,source:'study plan'})});save();alert(`${chosen.length}개의 공부 일정을 추가했어요.`)};
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
-// Cloud account sync: configure a Supabase project first (see SETUP_SYNC.txt).
-let supabaseClient=null, cloudUser=null, cloudReady=false, syncing=false;
+// Cloud account sync
+let supabaseClient = null;
+let cloudUser = null;
+let cloudReady = false;
+let syncing = false;
 
-const CONFIG_KEY='dayflowSupabaseConfig';
-const SUPABASE_URL='https://qrpvtzufllhdmiaqwjgl.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY='sb_publishable_RSKjbfzfl9w29H7NVdw_tw_OFG3OOEv';
+const CONFIG_KEY = 'dayflowSupabaseConfig';
+const SUPABASE_URL = 'https://qrpvtzufllhdmiaqwjgl.supabase.co';
 
-function cloudMessage(s){$('cloudStatus').textContent=s}
+// 기존에 발급받은 sb_publishable_ 공개 키를 따옴표 안에 넣으세요.
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_RSKjbfzfl9w29H7NVdw_tw_OFG3OOEv';
 
-function loadCloudConfig(){
-  $('supabaseUrl').value=SUPABASE_URL;
-  $('supabaseKey').value=SUPABASE_PUBLISHABLE_KEY;
+function cloudMessage(message) {
+  $('cloudStatus').textContent = message;
 }
 
-$('connectCloud').onclick=async()=>{
- const url=val('supabaseUrl').trim(),key=val('supabaseKey').trim();
- if(!/^https:\/\/.+\.supabase\.co\/?$/.test(url)||!key){cloudMessage('유효한 Supabase Project URL과 anon/publishable key를 입력해 주세요.');return}
- if(!window.supabase){cloudMessage('연결 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.');return}
- localStorage.setItem(CONFIG_KEY,JSON.stringify({url,key}));
- supabaseClient=window.supabase.createClient(url,key);cloudReady=true;$('authPanel').classList.remove('hidden');
- const {data:{session},error}=await supabaseClient.auth.getSession();
- if(error){cloudMessage('연결 확인 실패: '+error.message);return}
- if(session){cloudUser=session.user;showSignedIn();await cloudPull()}else cloudMessage('클라우드 설정이 완료됐어요. 계정을 만들거나 로그인해 주세요.');
- supabaseClient.auth.onAuthStateChange(async(_event,session)=>{cloudUser=session?.user||null;if(cloudUser){showSignedIn();setTimeout(()=>cloudPull(),0)}else{showSignedOut()}});
+function loadCloudConfig() {
+  $('supabaseUrl').value = SUPABASE_URL;
+  $('supabaseKey').value = SUPABASE_PUBLISHABLE_KEY;
+}
+
+function showSignedIn() {
+  $('signUp').classList.add('hidden');
+  $('signIn').classList.add('hidden');
+  $('signOut').classList.remove('hidden');
+  cloudMessage(`로그인됨: ${cloudUser.email}. 동기화 준비 완료.`);
+}
+
+function showSignedOut() {
+  cloudUser = null;
+  $('signUp').classList.remove('hidden');
+  $('signIn').classList.remove('hidden');
+  $('signOut').classList.add('hidden');
+  cloudMessage('로그아웃 상태예요. 이 기기의 로컬 일정은 유지돼요.');
+}
+
+async function cloudPull() {
+  if (!supabaseClient || !cloudUser) return;
+
+  cloudMessage('클라우드에서 일정을 불러오는 중…');
+
+  const { data, error } = await supabaseClient
+    .from('dayflow_data')
+    .select('payload')
+    .eq('user_id', cloudUser.id)
+    .maybeSingle();
+
+  if (error) {
+    cloudMessage('불러오기 실패: ' + error.message);
+    return;
+  }
+
+  if (data?.payload) {
+    const remote = data.payload;
+
+    tasks = remote.tasks || [];
+    routines = remote.routines || [];
+    reminders = remote.reminders || [];
+
+    localStorage.setItem('dayflowTasks', JSON.stringify(tasks));
+    localStorage.setItem('dayflowRoutines', JSON.stringify(routines));
+    localStorage.setItem('dayflowReminders', JSON.stringify(reminders));
+
+    render();
+    cloudMessage('클라우드 일정을 불러왔어요.');
+  } else {
+    await cloudPush();
+  }
+}
+
+async function cloudPush() {
+  if (!supabaseClient || !cloudUser || syncing) return;
+
+  syncing = true;
+  cloudMessage('클라우드에 저장하는 중…');
+
+  try {
+    const now = new Date().toISOString();
+    const payload = {
+      tasks,
+      routines,
+      reminders,
+      updatedAt: now
+    };
+
+    const { error } = await supabaseClient
+      .from('dayflow_data')
+      .upsert(
+        {
+          user_id: cloudUser.id,
+          payload,
+          updated_at: now
+        },
+        { onConflict: 'user_id' }
+      );
+
+    if (error) {
+      cloudMessage('동기화 실패: ' + error.message);
+    } else {
+      cloudMessage(
+        '동기화 완료 · ' +
+        new Date().toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit'
+        })
+      );
+    }
+  } catch (error) {
+    cloudMessage('동기화 중 오류가 발생했어요.');
+  } finally {
+    syncing = false;
+  }
+}
+
+async function connectCloud() {
+  if (!window.supabase) {
+    cloudMessage('Supabase 라이브러리를 불러오지 못했어요. 새로고침해 주세요.');
+    return;
+  }
+
+  const url = SUPABASE_URL;
+  const key = SUPABASE_PUBLISHABLE_KEY;
+
+  if (!key || key === '여기에_본인의_sb_publishable_키') {
+    cloudMessage('Supabase 공개 키를 코드에 입력해 주세요.');
+    return;
+  }
+
+  try {
+    cloudMessage('클라우드 연결을 확인하는 중…');
+
+    supabaseClient = window.supabase.createClient(url, key);
+    cloudReady = true;
+
+    $('authPanel').classList.remove('hidden');
+
+    const { data, error } = await supabaseClient.auth.getSession();
+
+    if (error) {
+      cloudMessage('로그인 상태 확인 실패: ' + error.message);
+      return;
+    }
+
+    cloudUser = data.session?.user || null;
+
+    if (cloudUser) {
+      showSignedIn();
+      await cloudPull();
+    } else {
+      cloudMessage('클라우드 연결 완료! 로그인해 주세요.');
+    }
+
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      cloudUser = session?.user || null;
+
+      if (cloudUser) {
+        showSignedIn();
+        setTimeout(() => cloudPull(), 0);
+      } else {
+        showSignedOut();
+      }
+    });
+  } catch (error) {
+    cloudMessage('클라우드 연결 실패: ' + error.message);
+  }
+}
+
+$('connectCloud').onclick = connectCloud;
+
+$('signUp').onclick = async () => {
+  if (!supabaseClient) {
+    cloudMessage('클라우드 연결을 확인해 주세요.');
+    return;
+  }
+
+  const email = val('accountEmail').trim();
+  const password = val('accountPassword');
+
+  if (!email || password.length < 6) {
+    cloudMessage('이메일과 6자 이상의 비밀번호를 입력해 주세요.');
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password
+  });
+
+  if (error) {
+    cloudMessage('계정 생성 실패: ' + error.message);
+    return;
+  }
+
+  if (data.session) {
+    cloudUser = data.user;
+    showSignedIn();
+    await cloudPush();
+  } else {
+    cloudMessage('이메일을 확인한 뒤 로그인해 주세요.');
+  }
 };
-function showSignedIn(){ $('signUp').classList.add('hidden');$('signIn').classList.add('hidden');$('signOut').classList.remove('hidden');cloudMessage(`로그인됨: ${cloudUser.email}. 동기화 준비 완료.`)}
-function showSignedOut(){cloudUser=null;$('signUp').classList.remove('hidden');$('signIn').classList.remove('hidden');$('signOut').classList.add('hidden');cloudMessage('로그아웃 상태예요. 이 기기의 로컬 일정은 유지돼요.')}
-$('signUp').onclick=async()=>{if(!supabaseClient)return cloudMessage('먼저 클라우드 연결을 눌러 주세요.');const email=val('accountEmail').trim(),password=val('accountPassword');if(!email||password.length<6)return cloudMessage('이메일과 6자 이상의 비밀번호를 입력해 주세요.');const {data,error}=await supabaseClient.auth.signUp({email,password});if(error)return cloudMessage('계정 생성 실패: '+error.message);if(data.session){cloudUser=data.user;showSignedIn();await cloudPush()}else cloudMessage('계정 생성 요청을 보냈어요. 이메일 인증이 필요하면 받은 편지함을 확인한 뒤 로그인해 주세요.')};
-$('signIn').onclick=async()=>{if(!supabaseClient)return cloudMessage('먼저 클라우드 연결을 눌러 주세요.');const {data,error}=await supabaseClient.auth.signInWithPassword({email:val('accountEmail').trim(),password:val('accountPassword')});if(error)return cloudMessage('로그인 실패: '+error.message);cloudUser=data.user;showSignedIn();await cloudPull()};
-$('signOut').onclick=async()=>{if(supabaseClient)await supabaseClient.auth.signOut();showSignedOut()};
-$('syncNow').onclick=async()=>{if(!cloudUser)return cloudMessage('먼저 로그인해 주세요.');await cloudPush()};
-async function cloudPull(){
- if(!supabaseClient||!cloudUser)return;
- cloudMessage('클라우드에서 일정을 불러오는 중…');
- const {data,error}=await supabaseClient.from('dayflow_data').select('payload').eq('user_id',cloudUser.id).maybeSingle();
- if(error){cloudMessage('불러오기 실패: '+error.message+' · SETUP_SYNC.txt의 SQL/RLS 설정을 확인해 주세요.');return}
- if(data?.payload){const remote=data.payload;tasks=remote.tasks||[];routines=remote.routines||[];reminders=remote.reminders||[];localStorage.setItem('dayflowTasks',JSON.stringify(tasks));localStorage.setItem('dayflowRoutines',JSON.stringify(routines));localStorage.setItem('dayflowReminders',JSON.stringify(reminders));render();cloudMessage('클라우드 일정을 불러왔어요.')}
- else {await cloudPush();cloudMessage('이 계정의 첫 동기화를 완료했어요.')}
-}
-async function cloudPush(){
- if(!supabaseClient||!cloudUser||syncing)return;
- syncing=true;cloudMessage('클라우드에 저장하는 중…');
- const payload={tasks,routines,reminders,updatedAt:new Date().toISOString()};
- const {error}=await supabaseClient.from('dayflow_data').upsert({user_id:cloudUser.id,payload,updated_at:new Date().toISOString()},{onConflict:'user_id'});
- syncing=false;
- if(error)cloudMessage('동기화 실패: '+error.message+' · 테이블과 RLS 설정을 확인해 주세요.');
- else cloudMessage('동기화 완료 · '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}));
-}
-const originalSave=save;
-save=function(){localStorage.setItem('dayflowTasks',JSON.stringify(tasks));localStorage.setItem('dayflowRoutines',JSON.stringify(routines));localStorage.setItem('dayflowReminders',JSON.stringify(reminders));render();if(cloudUser&&cloudReady)cloudPush()};
+
+$('signIn').onclick = async () => {
+  if (!supabaseClient) {
+    cloudMessage('클라우드 연결을 확인해 주세요.');
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email: val('accountEmail').trim(),
+    password: val('accountPassword')
+  });
+
+  if (error) {
+    cloudMessage('로그인 실패: ' + error.message);
+    return;
+  }
+
+  cloudUser = data.user;
+  showSignedIn();
+  await cloudPull();
+};
+
+$('signOut').onclick = async () => {
+  if (supabaseClient) await supabaseClient.auth.signOut();
+  showSignedOut();
+};
+
+$('syncNow').onclick = async () => {
+  if (!cloudUser) {
+    cloudMessage('먼저 로그인해 주세요.');
+    return;
+  }
+
+  await cloudPush();
+};
+
+const originalSave = save;
+
+save = function () {
+  localStorage.setItem('dayflowTasks', JSON.stringify(tasks));
+  localStorage.setItem('dayflowRoutines', JSON.stringify(routines));
+  localStorage.setItem('dayflowReminders', JSON.stringify(reminders));
+
+  render();
+
+  if (cloudUser && cloudReady) {
+    cloudPush();
+  }
+};
 
 loadCloudConfig();
- 
-(async function autoConnectCloud(){
-  if(!window.supabase){
-    cloudMessage('Supabase 라이브러리를 불러오지 못했어요.');
-    return;
-  }
 
-  const url=SUPABASE_URL;
-  const key=SUPABASE_PUBLISHABLE_KEY;
-
-  if(!key || key==='YOUR_SUPABASE_PUBLISHABLE_KEY'){
-    cloudMessage('Supabase 공개 키 설정이 필요해요.');
-    return;
-  }
-
-  supabaseClient=window.supabase.createClient(url,key);
-  cloudReady=true;
-  $('authPanel').classList.remove('hidden');
-
-  const {data:{session},error}=await supabaseClient.auth.getSession();
-
-  if(error){
-    cloudMessage('로그인 상태 확인 실패: '+error.message);
-    return;
-  }
-
-  if(session){
-    cloudUser=session.user;
-    showSignedIn();
-    await cloudPull();
-  }else{
-    cloudMessage('클라우드 연결 완료! 로그인해 주세요.');
-  }
-
-  supabaseClient.auth.onAuthStateChange((_event,session)=>{
-    cloudUser=session?.user||null;
-    if(cloudUser){
-      showSignedIn();
-      setTimeout(()=>cloudPull(),0);
-    }else{
-      showSignedOut();
-    }
-  });
-})();
+// 페이지와 Supabase 라이브러리가 준비된 후 자동 연결
+window.addEventListener('load', () => {
+  connectCloud();
+});
 
 // Data schema migrations: never clear user data on app version changes.
 const DATA_SCHEMA_VERSION=2;
