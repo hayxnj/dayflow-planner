@@ -1,0 +1,10 @@
+{
+  "name": "Dayflow 플래너",
+  "short_name": "Dayflow",
+  "description": "사진 인식과 공부 계획을 지원하는 개인 일정 플래너",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f2ec",
+  "theme_color": "#f5f2ec",
+  "icons": []
+}

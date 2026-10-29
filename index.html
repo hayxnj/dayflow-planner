@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f5f2ec">
+<title>Dayflow 플래너</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root{--bg:#f5f2ec;--card:#fffdf9;--ink:#252923;--muted:#77796f;--line:#e8e3d9;--accent:#456b57;--soft:#e6eee7}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}button,input,textarea,select{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:11px 14px;background:var(--accent);color:white;font-weight:650}button.secondary{background:#eeeae1;color:var(--ink)}button:disabled{opacity:.45;cursor:wait}
+header{padding:22px 18px 12px;max-width:900px;margin:auto}header .eyebrow{color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.13em}h1{margin:5px 0;font-size:28px}header p{margin:5px 0;color:var(--muted);font-size:14px}
+main{max-width:900px;margin:auto;padding:8px 14px 90px;display:grid;gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:17px;box-shadow:0 4px 20px #342d1b08}.card h2{font-size:17px;margin:0 0 12px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{min-width:0}.grow{flex:1}input,textarea,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:white;color:var(--ink)}label{display:block;font-size:13px;color:var(--muted);margin:8px 0 5px}.hint{font-size:12px;color:var(--muted);line-height:1.5}.tabs{display:flex;gap:7px;overflow:auto;padding-bottom:4px}.tabs button{white-space:nowrap}.tabs button.active{background:var(--ink)}.datebar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}.datebar strong{font-size:18px}.daygrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}.dayname,.day{padding:7px 0;text-align:center;font-size:12px}.dayname{color:var(--muted)}.day{background:transparent;color:var(--ink);border:1px solid transparent;padding:9px 0}.day.selected{background:var(--accent);color:white}.day.today{border-color:var(--accent)}.day.has:after{content:"";display:block;width:4px;height:4px;background:currentColor;border-radius:50%;margin:3px auto 0}.task{display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}.task:last-child{border-bottom:0}.task input{width:18px;height:18px;margin-top:3px;accent-color:var(--accent)}.task.done .tasktitle{text-decoration:line-through;color:var(--muted)}.tasktitle{font-weight:650}.meta{font-size:12px;color:var(--muted);margin-top:3px}.time{font-size:12px;color:var(--accent);font-weight:750;min-width:76px}.empty{padding:20px;text-align:center;color:var(--muted);font-size:14px}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.hidden{display:none!important}.status{font-size:13px;margin-top:8px;color:var(--accent)}.pill{display:inline-block;border-radius:999px;background:var(--soft);padding:4px 8px;font-size:11px;color:var(--accent);font-weight:700}.bottomnav{position:fixed;bottom:0;left:0;right:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:#f5f2eced;backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;justify-content:center;gap:8px}.bottomnav button{flex:1;max-width:220px}.preview{background:#f8f6f0;border:1px dashed #d7d0c3;border-radius:12px;padding:12px;white-space:pre-wrap;max-height:180px;overflow:auto;font-size:13px}
+@media(min-width:700px){main{grid-template-columns:1fr 1fr}.wide{grid-column:1/-1}header{padding-top:30px}.day{font-size:14px}}
+</style>
+</head>
+<body>
+<header><div class="eyebrow">YOUR PERSONAL PLANNER</div><h1>Dayflow 플래너</h1><p>일정 · 공부 계획 · 반복 루틴을 한곳에서 관리해요.</p></header>
+<main>
+<section class="card">
+<div class="datebar"><button class="secondary" id="prev">‹</button><strong id="monthTitle">October 2026</strong><button class="secondary" id="next">›</button></div>
+<div class="daygrid" id="calendar"></div>
+<div class="hint" style="margin-top:9px">날짜를 선택하면 해당 날짜의 일정이 표시돼요. 날짜와 시간 표기는 English로 유지돼요.</div>
+</section>
+<section class="card">
+<h2 id="agendaTitle">Today’s schedule</h2>
+<div id="tasks"></div>
+</section>
+<section class="card wide" id="photoSection">
+<h2>📷 사진으로 일정 추가하기</h2>
+<p class="hint">종이 플래너, 시간표, 일정표 사진을 올리면 글자를 읽어 일정 후보를 만들어요. 추가 전에 내용을 확인하고 수정할 수 있어요.</p>
+<label for="photo">플래너 이미지 선택</label><input id="photo" type="file" accept="image/*" capture="environment">
+<div class="row" style="margin-top:10px"><button id="readPhoto">이미지에서 일정 읽기</button><span class="hint">첫 사용 시 OCR 엔진을 불러오려면 인터넷이 필요해요.</span></div>
+<div id="ocrStatus" class="status" aria-live="polite"></div>
+<label for="ocrText">읽어온 텍스트 (필요하면 수정)</label><textarea id="ocrText" rows="5" placeholder="이미지를 선택한 뒤 ‘이미지에서 일정 읽기’를 눌러주세요."></textarea>
+<div class="two">
+<div><label for="photoDate">일정 날짜</label><input type="date" id="photoDate"></div>
+<div><label for="photoTime">시작 시간</label><input type="time" id="photoTime" value="09:00"></div>
+</div>
+<label for="photoTitle">일정 이름</label><input id="photoTitle" placeholder="예: 수학 학원, 영어 단어 복습">
+<label for="photoDuration">소요 시간</label><select id="photoDuration"><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="90">1 hour 30 min</option><option value="120">2 hours</option></select>
+<div class="row" style="margin-top:12px"><button id="addPhotoTask">확인 후 일정 추가</button><button class="secondary" id="suggestFromText">텍스트에서 일정 후보 만들기</button></div>
+<p class="hint">사진 속 글씨가 흐리거나 표가 복잡하면 인식이 틀릴 수 있어요. 추가 전에 날짜·시간·이름을 꼭 확인하세요.</p>
+</section>
+<section class="card">
+<h2>＋ 일정 직접 추가</h2>
+<label for="newTitle">일정 이름</label><input id="newTitle" placeholder="예: 과학 과제">
+<div class="two"><div><label for="newDate">날짜</label><input type="date" id="newDate"></div><div><label for="newTime">시간</label><input type="time" id="newTime" value="16:00"></div></div>
+<label for="newDuration">소요 시간</label><select id="newDuration"><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="90">1 hour 30 min</option><option value="120">2 hours</option></select>
+<div class="row" style="margin-top:12px"><button id="addTask">일정 저장</button></div>
+</section>
+<section class="card">
+<h2>🔁 반복 루틴</h2>
+<label for="routineTitle">루틴 이름</label><input id="routineTitle" placeholder="예: 영어 학원, 운동">
+<div class="two"><div><label for="routineTime">시간</label><input type="time" id="routineTime" value="18:00"></div><div><label for="routineDuration">소요 시간</label><select id="routineDuration"><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="90">1 hour 30 min</option><option value="120">2 hours</option></select></div></div>
+<label>반복 요일</label><div class="row" id="weekdayChecks"></div>
+<div class="row" style="margin-top:12px"><button id="saveRoutine">반복 루틴 저장</button></div><div class="hint" style="margin-top:8px">저장한 루틴은 앞으로 12주 일정에 추가돼요.</div>
+<div id="routines" style="margin-top:10px"></div>
+</section>
+
+
+<section class="card wide" id="dataSafetySection">
+<h2>🛡️ 데이터 백업 및 복구</h2>
+<p class="hint">사이트를 업데이트해도 같은 주소와 브라우저 저장 공간을 사용하면 기존 일정이 유지되도록 설계했어요. 그래도 중요한 일정은 정기적으로 백업해 두는 것을 추천해요.</p>
+<div class="row"><button id="exportBackup">백업 파일 다운로드</button><button id="importBackup" class="secondary">백업 파일 복원</button><input id="backupFile" type="file" accept="application/json,.json" class="hidden"></div>
+<div id="backupStatus" class="status" aria-live="polite"></div>
+<div id="updateNotice" class="status" aria-live="polite"></div>
+</section>
+
+<section class="card wide" id="accountSection">
+<h2>☁️ 계정 및 기기 간 동기화</h2>
+<p class="hint">계정을 만들고 로그인하면 일정·루틴·평가 알림을 클라우드에 동기화할 수 있어요. 먼저 Supabase 프로젝트 설정이 필요합니다. 설정 안내는 ZIP 안의 SETUP_SYNC.txt를 확인하세요.</p>
+<div class="two"><div><label for="supabaseUrl">Supabase Project URL</label><input id="supabaseUrl" placeholder="https://your-project.supabase.co"></div><div><label for="supabaseKey">Supabase anon / publishable key</label><input id="supabaseKey" placeholder="공개용 anon 또는 publishable key"></div></div>
+<div class="row" style="margin-top:10px"><button id="connectCloud">클라우드 연결</button><span class="hint">비밀번호나 service_role key는 이곳에 입력하지 마세요.</span></div>
+<div id="cloudStatus" class="status" aria-live="polite">아직 클라우드에 연결되지 않았어요. 로컬 일정은 이 기기에 저장돼요.</div>
+<div id="authPanel" class="hidden">
+<div class="two"><div><label for="accountEmail">이메일</label><input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com"></div><div><label for="accountPassword">비밀번호</label><input id="accountPassword" type="password" autocomplete="current-password" placeholder="최소 6자"></div></div>
+<div class="row" style="margin-top:10px"><button id="signUp">계정 만들기</button><button id="signIn" class="secondary">로그인</button><button id="signOut" class="secondary hidden">로그아웃</button><button id="syncNow" class="secondary">지금 동기화</button></div>
+</div>
+</section>
+<section class="card wide" id="workloadSection">
+<h2>🧩 과제 분량 자동 분배</h2>
+<p class="hint">해야 할 과제의 총량과 마감일까지 남은 날짜를 입력하면 하루 단위로 나눠 일정을 만들어 줘요. 마지막 날에 몰리지 않도록 가능한 한 균등하게 배분합니다.</p>
+<label for="assignmentTitle">과제 이름</label><input id="assignmentTitle" placeholder="예: 역사 보고서 작성">
+<div class="two"><div><label for="assignmentTotal">전체 과제량</label><input id="assignmentTotal" type="number" min="1" value="10" placeholder="예: 20"></div><div><label for="assignmentUnit">분량 단위</label><select id="assignmentUnit"><option value="pages">pages</option><option value="problems">problems</option><option value="questions">questions</option><option value="slides">slides</option><option value="chapters">chapters</option><option value="sections">sections</option><option value="minutes">minutes</option><option value="items">items</option></select></div></div>
+<div class="two"><div><label for="assignmentDeadline">마감 날짜</label><input type="date" id="assignmentDeadline"></div><div><label for="assignmentStart">시작 날짜</label><input type="date" id="assignmentStart"></div></div>
+<div class="two"><div><label for="assignmentTime">매일 시작 시간</label><input type="time" id="assignmentTime" value="17:00"></div><div><label for="assignmentMinutes">하루 예상 시간 (min)</label><input type="number" id="assignmentMinutes" min="15" step="15" value="60"></div></div>
+<div class="row" style="margin-top:12px"><button id="previewWorkload">분배 미리보기</button><button id="addWorkload" class="secondary">일정으로 저장</button></div>
+<div id="workloadPreview" class="preview" style="margin-top:12px">과제량과 마감 날짜를 입력한 뒤 미리보기를 눌러주세요.</div>
+</section>
+
+<section class="card wide">
+<h2>📚 공부 계획 만들기</h2>
+<p class="hint">목차와 공부할 분량을 입력하면 챕터별 계획을 일정으로 나눠 추가해요.</p>
+<label for="bookTitle">책 / 과목</label><input id="bookTitle" placeholder="예: Biology">
+<label for="toc">목차 (한 줄에 한 챕터)</label><textarea id="toc" rows="4" placeholder="Chapter 1 — Cells&#10;Chapter 2 — Genetics&#10;Chapter 3 — Evolution"></textarea>
+<div class="two"><div><label for="studyStart">시작 날짜</label><input type="date" id="studyStart"></div><div><label for="studyTime">공부 시작 시간</label><input type="time" id="studyTime" value="17:00"></div></div>
+<div class="two"><div><label for="studyAmount">공부할 분량 (chapters)</label><input type="number" id="studyAmount" min="1" value="3"></div><div><label for="studyPerDay">하루 공부량 (chapters)</label><input type="number" id="studyPerDay" min="1" value="1"></div></div>
+<div class="row" style="margin-top:12px"><button id="makeStudy">공부 계획 생성 및 일정 추가</button></div>
+</section>
+<section class="card wide">
+<h2>🔔 수행평가 / 시험 알림</h2>
+<label for="reminderTitle">평가 이름</label><input id="reminderTitle" placeholder="예: 역사 발표">
+<div class="two"><div><label for="reminderDate">날짜</label><input type="date" id="reminderDate"></div><div><label for="reminderTime">알림 시간</label><input type="time" id="reminderTime" value="19:00"></div></div>
+<div class="row" style="margin-top:12px"><button id="addReminder">알림 일정 추가</button><button class="secondary" id="notifyPermission">알림 권한 설정</button></div>
+<div id="reminders"></div><p class="hint">이 버전은 앱을 열었을 때 확인하는 일정 알림을 저장해요. 앱이 닫혀 있을 때 울리는 정확한 백그라운드 알림은 기기와 설치 방식에 따라 지원되지 않을 수 있어요.</p>
+</section>
+</main>
+<div class="bottomnav"><button id="goPhoto">📷 사진 가져오기</button><button id="goAdd" class="secondary">＋ 일정 추가</button></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const $=id=>document.getElementById(id), pad=n=>String(n).padStart(2,'0');
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+let selected=iso(new Date()), viewDate=new Date(); viewDate.setDate(1);
+let tasks=JSON.parse(localStorage.getItem('dayflowTasks')||'[]');
+let routines=JSON.parse(localStorage.getItem('dayflowRoutines')||'[]');
+let reminders=JSON.parse(localStorage.getItem('dayflowReminders')||'[]');
+const weekdays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+function save(){localStorage.setItem('dayflowTasks',JSON.stringify(tasks));localStorage.setItem('dayflowRoutines',JSON.stringify(routines));localStorage.setItem('dayflowReminders',JSON.stringify(reminders));render()}
+function enDate(date){return new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}
+function renderCalendar(){
+ $('monthTitle').textContent=viewDate.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+ const first=new Date(viewDate.getFullYear(),viewDate.getMonth(),1), offset=(first.getDay()+6)%7, days=new Date(viewDate.getFullYear(),viewDate.getMonth()+1,0).getDate();
+ $('calendar').innerHTML=weekdays.map(d=>`<div class="dayname">${d}</div>`).join('');
+ for(let i=0;i<offset;i++) $('calendar').insertAdjacentHTML('beforeend','<div></div>');
+ for(let d=1;d<=days;d++){let key=iso(new Date(viewDate.getFullYear(),viewDate.getMonth(),d));let b=document.createElement('button');b.className='day'+(key===selected?' selected':'')+(key===iso(new Date())?' today':'')+(tasks.some(t=>t.date===key)?' has':'');b.textContent=d;b.onclick=()=>{selected=key;render()};$('calendar').appendChild(b)}
+}
+function renderTasks(){
+ $('agendaTitle').textContent=enDate(selected);
+ const dayTasks=tasks.filter(t=>t.date===selected).sort((a,b)=>a.time.localeCompare(b.time));
+ $('tasks').innerHTML=dayTasks.length?'':'<div class="empty">이 날짜에는 아직 일정이 없어요.</div>';
+ dayTasks.forEach(t=>{const el=document.createElement('div');el.className='task'+(t.done?' done':'');el.innerHTML=`<input type="checkbox" ${t.done?'checked':''} aria-label="완료"><div class="time">${formatTime(t.time)}</div><div class="grow"><div class="tasktitle"></div><div class="meta">${t.duration} min${t.source?' · '+t.source:''}</div></div><button class="secondary" style="padding:5px 9px">×</button>`;el.querySelector('.tasktitle').textContent=t.title;el.querySelector('input').onchange=e=>{t.done=e.target.checked;save()};el.querySelector('button').onclick=()=>{tasks=tasks.filter(x=>x.id!==t.id);save()};$('tasks').appendChild(el)});
+}
+function formatTime(s){if(!s)return '';let [h,m]=s.split(':').map(Number);return `${h%12||12}:${pad(m)} ${h<12?'a.m.':'p.m.'}`}
+function render(){renderCalendar();renderTasks();renderReminders();renderRoutines()}
+function addTask(obj){tasks.push({id:Date.now()+Math.random(),done:false,source:'',...obj});save()}
+function val(id){return $(id).value}
+function addManual(){if(!val('newTitle').trim())return alert('일정 이름을 입력해 주세요.');addTask({title:val('newTitle').trim(),date:val('newDate')||selected,time:val('newTime')||'09:00',duration:+val('newDuration')});$('newTitle').value=''}
+$('prev').onclick=()=>{viewDate.setMonth(viewDate.getMonth()-1);renderCalendar()};$('next').onclick=()=>{viewDate.setMonth(viewDate.getMonth()+1);renderCalendar()};
+$('addTask').onclick=addManual;
+$('goPhoto').onclick=()=>$('photoSection').scrollIntoView({behavior:'smooth'});$('goAdd').onclick=()=>$('newTitle').focus();
+function setupDates(){['newDate','photoDate','studyStart','reminderDate'].forEach(id=>$(id).value=selected)}
+setupDates();
+$('readPhoto').onclick=async()=>{
+ const file=$('photo').files[0];if(!file){$('ocrStatus').textContent='먼저 플래너 이미지를 선택해 주세요.';return}
+ if(!window.Tesseract){$('ocrStatus').textContent='OCR 엔진을 불러오지 못했어요. 인터넷 연결 후 다시 시도해 주세요.';return}
+ $('readPhoto').disabled=true;$('ocrStatus').textContent='이미지의 글자를 읽고 있어요. 잠시 기다려 주세요…';
+ try{const result=await Tesseract.recognize(file,'eng+kor',{logger:m=>{if(m.status==='recognizing text')$('ocrStatus').textContent=`글자 인식 중… ${Math.round((m.progress||0)*100)}%`}});$('ocrText').value=result.data.text.trim();$('ocrStatus').textContent='인식 완료! 텍스트를 확인한 다음 일정 후보를 만들어 주세요.';suggestCandidates(false)}
+ catch(e){$('ocrStatus').textContent='인식에 실패했어요. 더 선명한 사진으로 다시 시도해 주세요.'}
+ finally{$('readPhoto').disabled=false}
+};
+function suggestCandidates(fillTitle=true){
+ const txt=val('ocrText').trim();if(!txt)return alert('먼저 이미지에서 글자를 읽거나 텍스트를 입력해 주세요.');
+ const lines=txt.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+ // Find likely times and attach the nearest text line as a suggested event.
+ const found=[];
+ lines.forEach((line,i)=>{const m=line.match(/(?:^|\b)([01]?\d|2[0-3])\s*[:.시]\s*([0-5]\d)?\s*(a\.?m\.?|p\.?m\.?)?/i)||line.match(/\b(1[0-2]|0?[1-9])\s*(a\.?m\.?|p\.?m\.?)\b/i);
+ if(m){let hh=+(m[1]),mm=m[2]&&/^\d+$/.test(m[2])?+m[2]:0,amp=(m[3]||m[2]||'').toLowerCase();if(amp.includes('p')&&hh<12)hh+=12;if(amp.includes('a')&&hh===12)hh=0;const clean=line.replace(m[0],' ').replace(/\s+/g,' ').trim();found.push({time:`${pad(hh)}:${pad(mm)}`,title:clean||lines[i+1]||'플래너 일정'})}});
+ if(found.length){const first=found[0];$('photoTime').value=first.time;$('photoTitle').value=first.title.slice(0,100);$('ocrStatus').textContent=`시간이 포함된 일정 후보 ${found.length}개를 찾았어요. 현재 입력칸에는 첫 번째 후보가 들어갔어요. 한 개씩 확인해 추가해 주세요.`}
+ else {if(fillTitle)$('photoTitle').value=lines[0]?.slice(0,100)||'';$('ocrStatus').textContent='시간을 확실히 찾지 못했어요. 텍스트를 참고해 일정 이름과 시간을 직접 입력해 주세요.'}
+}
+$('suggestFromText').onclick=()=>suggestCandidates(true);
+$('addPhotoTask').onclick=()=>{if(!val('photoTitle').trim())return alert('일정 이름을 입력하거나 텍스트에서 후보를 만들어 주세요.');addTask({title:val('photoTitle').trim(),date:val('photoDate')||selected,time:val('photoTime')||'09:00',duration:+val('photoDuration'),source:'photo import'});$('photoTitle').value='';$('ocrStatus').textContent='일정을 저장했어요. 달력에서 확인할 수 있어요.'};
+const dayValues=[1,2,3,4,5,6,0];
+$('weekdayChecks').innerHTML=weekdays.map((d,i)=>`<label style="display:flex;align-items:center;gap:4px;margin:0;color:var(--ink)"><input type="checkbox" value="${dayValues[i]}" ${i<5?'checked':''} style="width:auto"> ${d}</label>`).join('');
+$('saveRoutine').onclick=()=>{const title=val('routineTitle').trim();const days=[...$('weekdayChecks').querySelectorAll('input:checked')].map(x=>+x.value);if(!title||!days.length)return alert('루틴 이름과 반복 요일을 선택해 주세요.');const r={id:Date.now(),title,time:val('routineTime'),duration:+val('routineDuration'),days};routines.push(r);let start=new Date(selected+'T12:00:00');for(let i=0;i<84;i++){let d=new Date(start);d.setDate(d.getDate()+i);if(days.includes(d.getDay()))tasks.push({id:Date.now()+Math.random(),title,date:iso(d),time:r.time,duration:r.duration,done:false,source:'routine'})}save();$('routineTitle').value=''};
+function renderRoutines(){$('routines').innerHTML=routines.map(r=>`<div class="task"><div class="grow"><div class="tasktitle">${escapeHtml(r.title)}</div><div class="meta">${formatTime(r.time)} · ${r.days.map(d=>weekdays[dayValues.indexOf(d)]).join(', ')}</div></div><button class="secondary" data-id="${r.id}">삭제</button></div>`).join('')||'<div class="hint">저장된 반복 루틴이 없어요.</div>';$('routines').querySelectorAll('button').forEach(b=>b.onclick=()=>{routines=routines.filter(r=>r.id!==+b.dataset.id);save()})}
+function renderReminders(){$('reminders').innerHTML=reminders.map(r=>`<div class="task"><div class="grow"><div class="tasktitle">${escapeHtml(r.title)}</div><div class="meta">${enDate(r.date)} · ${formatTime(r.time)}</div></div><button class="secondary" data-id="${r.id}">삭제</button></div>`).join('')||'<div class="hint">저장된 평가 알림이 없어요.</div>'; $('reminders').querySelectorAll('button').forEach(b=>b.onclick=()=>{reminders=reminders.filter(r=>r.id!==+b.dataset.id);save()})}
+$('addReminder').onclick=()=>{const title=val('reminderTitle').trim();if(!title||!val('reminderDate'))return alert('평가 이름과 날짜를 입력해 주세요.');reminders.push({id:Date.now(),title,date:val('reminderDate'),time:val('reminderTime')});save();$('reminderTitle').value=''};
+$('notifyPermission').onclick=async()=>{if(!('Notification'in window))return alert('이 브라우저는 알림 권한 설정을 지원하지 않아요.');const p=await Notification.requestPermission();alert(p==='granted'?'알림 권한이 허용됐어요. 이 버전은 앱을 열었을 때 일정 확인을 중심으로 동작해요.':'브라우저 설정에서 알림 권한을 변경할 수 있어요.')};
+$('makeStudy').onclick=()=>{const title=val('bookTitle').trim()||'Study';const chapters=val('toc').split(/\n+/).map(s=>s.trim()).filter(Boolean);const amount=Math.max(1,+val('studyAmount')||1),per=Math.max(1,+val('studyPerDay')||1);if(!chapters.length)return alert('목차를 한 줄에 한 챕터씩 입력해 주세요.');const chosen=chapters.slice(0,Math.min(amount,chapters.length));let d=new Date((val('studyStart')||selected)+'T12:00:00');chosen.forEach((ch,i)=>{if(i>0&&i%per===0)d.setDate(d.getDate()+1);tasks.push({id:Date.now()+Math.random(),title:`${title}: ${ch}`,date:iso(d),time:val('studyTime')||'17:00',duration:60,done:false,source:'study plan'})});save();alert(`${chosen.length}개의 공부 일정을 추가했어요.`)};
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+// Cloud account sync: configure a Supabase project first (see SETUP_SYNC.txt).
+let supabaseClient=null, cloudUser=null, cloudReady=false, syncing=false;
+const CONFIG_KEY='dayflowSupabaseConfig';
+function cloudMessage(s){$('cloudStatus').textContent=s}
+function loadCloudConfig(){try{const c=JSON.parse(localStorage.getItem(CONFIG_KEY)||'{}');$('supabaseUrl').value=c.url||'';$('supabaseKey').value=c.key||''}catch{}}
+$('connectCloud').onclick=async()=>{
+ const url=val('supabaseUrl').trim(),key=val('supabaseKey').trim();
+ if(!/^https:\/\/.+\.supabase\.co\/?$/.test(url)||!key){cloudMessage('유효한 Supabase Project URL과 anon/publishable key를 입력해 주세요.');return}
+ if(!window.supabase){cloudMessage('연결 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.');return}
+ localStorage.setItem(CONFIG_KEY,JSON.stringify({url,key}));
+ supabaseClient=window.supabase.createClient(url,key);cloudReady=true;$('authPanel').classList.remove('hidden');
+ const {data:{session},error}=await supabaseClient.auth.getSession();
+ if(error){cloudMessage('연결 확인 실패: '+error.message);return}
+ if(session){cloudUser=session.user;showSignedIn();await cloudPull()}else cloudMessage('클라우드 설정이 완료됐어요. 계정을 만들거나 로그인해 주세요.');
+ supabaseClient.auth.onAuthStateChange(async(_event,session)=>{cloudUser=session?.user||null;if(cloudUser){showSignedIn();setTimeout(()=>cloudPull(),0)}else{showSignedOut()}});
+};
+function showSignedIn(){ $('signUp').classList.add('hidden');$('signIn').classList.add('hidden');$('signOut').classList.remove('hidden');cloudMessage(`로그인됨: ${cloudUser.email}. 동기화 준비 완료.`)}
+function showSignedOut(){cloudUser=null;$('signUp').classList.remove('hidden');$('signIn').classList.remove('hidden');$('signOut').classList.add('hidden');cloudMessage('로그아웃 상태예요. 이 기기의 로컬 일정은 유지돼요.')}
+$('signUp').onclick=async()=>{if(!supabaseClient)return cloudMessage('먼저 클라우드 연결을 눌러 주세요.');const email=val('accountEmail').trim(),password=val('accountPassword');if(!email||password.length<6)return cloudMessage('이메일과 6자 이상의 비밀번호를 입력해 주세요.');const {data,error}=await supabaseClient.auth.signUp({email,password});if(error)return cloudMessage('계정 생성 실패: '+error.message);if(data.session){cloudUser=data.user;showSignedIn();await cloudPush()}else cloudMessage('계정 생성 요청을 보냈어요. 이메일 인증이 필요하면 받은 편지함을 확인한 뒤 로그인해 주세요.')};
+$('signIn').onclick=async()=>{if(!supabaseClient)return cloudMessage('먼저 클라우드 연결을 눌러 주세요.');const {data,error}=await supabaseClient.auth.signInWithPassword({email:val('accountEmail').trim(),password:val('accountPassword')});if(error)return cloudMessage('로그인 실패: '+error.message);cloudUser=data.user;showSignedIn();await cloudPull()};
+$('signOut').onclick=async()=>{if(supabaseClient)await supabaseClient.auth.signOut();showSignedOut()};
+$('syncNow').onclick=async()=>{if(!cloudUser)return cloudMessage('먼저 로그인해 주세요.');await cloudPush()};
+async function cloudPull(){
+ if(!supabaseClient||!cloudUser)return;
+ cloudMessage('클라우드에서 일정을 불러오는 중…');
+ const {data,error}=await supabaseClient.from('dayflow_data').select('payload').eq('user_id',cloudUser.id).maybeSingle();
+ if(error){cloudMessage('불러오기 실패: '+error.message+' · SETUP_SYNC.txt의 SQL/RLS 설정을 확인해 주세요.');return}
+ if(data?.payload){const remote=data.payload;tasks=remote.tasks||[];routines=remote.routines||[];reminders=remote.reminders||[];localStorage.setItem('dayflowTasks',JSON.stringify(tasks));localStorage.setItem('dayflowRoutines',JSON.stringify(routines));localStorage.setItem('dayflowReminders',JSON.stringify(reminders));render();cloudMessage('클라우드 일정을 불러왔어요.')}
+ else {await cloudPush();cloudMessage('이 계정의 첫 동기화를 완료했어요.')}
+}
+async function cloudPush(){
+ if(!supabaseClient||!cloudUser||syncing)return;
+ syncing=true;cloudMessage('클라우드에 저장하는 중…');
+ const payload={tasks,routines,reminders,updatedAt:new Date().toISOString()};
+ const {error}=await supabaseClient.from('dayflow_data').upsert({user_id:cloudUser.id,payload,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+ syncing=false;
+ if(error)cloudMessage('동기화 실패: '+error.message+' · 테이블과 RLS 설정을 확인해 주세요.');
+ else cloudMessage('동기화 완료 · '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}));
+}
+const originalSave=save;
+save=function(){localStorage.setItem('dayflowTasks',JSON.stringify(tasks));localStorage.setItem('dayflowRoutines',JSON.stringify(routines));localStorage.setItem('dayflowReminders',JSON.stringify(reminders));render();if(cloudUser&&cloudReady)cloudPush()};
+
+loadCloudConfig();
+// Data schema migrations: never clear user data on app version changes.
+const DATA_SCHEMA_VERSION=2;
+function migrateLocalData(){
+ try{
+  const version=Number(localStorage.getItem('dayflowSchemaVersion')||'1');
+  if(version<2){
+   // Existing arrays are already compatible; ensure all keys exist without overwriting data.
+   if(!localStorage.getItem('dayflowTasks'))localStorage.setItem('dayflowTasks','[]');
+   if(!localStorage.getItem('dayflowRoutines'))localStorage.setItem('dayflowRoutines','[]');
+   if(!localStorage.getItem('dayflowReminders'))localStorage.setItem('dayflowReminders','[]');
+   localStorage.setItem('dayflowSchemaVersion',String(DATA_SCHEMA_VERSION));
+  }
+ }catch(e){console.warn('Data migration could not run',e)}
+}
+migrateLocalData();
+$('exportBackup').onclick=()=>{
+ const payload={app:'Dayflow',schemaVersion:DATA_SCHEMA_VERSION,exportedAt:new Date().toISOString(),tasks,routines,reminders};
+ const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`dayflow-backup-${iso(new Date())}.json`;a.click();URL.revokeObjectURL(url);
+ $('backupStatus').textContent='백업 파일을 만들었어요. 안전한 곳에 보관해 주세요.';
+};
+$('importBackup').onclick=()=>$('backupFile').click();
+$('backupFile').onchange=async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try{
+  const data=JSON.parse(await file.text());
+  if(!data||!Array.isArray(data.tasks)||!Array.isArray(data.routines)||!Array.isArray(data.reminders))throw new Error('백업 파일 형식이 올바르지 않아요.');
+  if(!confirm('백업 내용으로 현재 이 기기의 일정·루틴·평가 알림을 교체할까요? 현재 데이터를 먼저 백업하는 것을 권장해요.'))return;
+  tasks=data.tasks;routines=data.routines;reminders=data.reminders;localStorage.setItem('dayflowSchemaVersion',String(DATA_SCHEMA_VERSION));save();
+  $('backupStatus').textContent='백업을 복원했어요.';if(cloudUser&&cloudReady)await cloudPush();
+ }catch(err){$('backupStatus').textContent='복원 실패: '+(err.message||'파일을 확인해 주세요.')}
+ finally{$('backupFile').value=''}
+};
+$('assignmentStart').value=selected;$('assignmentDeadline').value=selected;
+function workloadPlan(){
+ const title=val('assignmentTitle').trim()||'과제',total=Math.max(1,Number(val('assignmentTotal'))||1),unit=val('assignmentUnit'),startStr=val('assignmentStart')||selected,endStr=val('assignmentDeadline');
+ if(!endStr)return {error:'마감 날짜를 선택해 주세요.'};
+ const start=new Date(startStr+'T12:00:00'),end=new Date(endStr+'T12:00:00');
+ if(Number.isNaN(+start)||Number.isNaN(+end)||end<start)return {error:'마감 날짜는 시작 날짜와 같거나 이후여야 해요.'};
+ const count=Math.floor((end-start)/86400000)+1;
+ if(count>366)return {error:'1년 이내의 기간을 선택해 주세요.'};
+ const base=Math.floor(total/count),rem=total%count,plans=[];
+ for(let i=0;i<count;i++){const amount=base+(i<rem?1:0);if(amount>0){const d=new Date(start);d.setDate(d.getDate()+i);plans.push({date:iso(d),amount})}}
+ return {title,total,unit,startStr,endStr,count,plans,minutes:Math.max(15,+val('assignmentMinutes')||60),time:val('assignmentTime')||'17:00'};
+}
+function showWorkload(){const p=workloadPlan();if(p.error){$('workloadPreview').textContent=p.error;return null}
+ $('workloadPreview').textContent=`${p.title} · ${p.total} ${p.unit}\n${enDate(p.startStr)} → ${enDate(p.endStr)} (${p.count} days)\n\n`+p.plans.map(x=>`${enDate(x.date)} · ${x.amount} ${p.unit} · ${formatTime(p.time)} · ${p.minutes} min`).join('\n')+`\n\n총 ${p.plans.reduce((s,x)=>s+x.amount,0)} ${p.unit}로 분배했어요.`;
+ return p}
+$('previewWorkload').onclick=showWorkload;
+$('addWorkload').onclick=()=>{const p=showWorkload();if(!p)return;if(!confirm(`${p.plans.length}개의 과제 일정을 저장할까요?`))return;p.plans.forEach(x=>tasks.push({id:Date.now()+Math.random(),title:`${p.title}: ${x.amount} ${p.unit}`,date:x.date,time:p.time,duration:p.minutes,done:false,source:'auto-distributed assignment'}));save();alert('과제 일정을 저장했어요.')};
+
+if('serviceWorker'in navigator && location.protocol.startsWith('http')){
+ navigator.serviceWorker.register('./sw.js').then(reg=>{
+  if(reg.waiting)$('updateNotice').innerHTML='새 버전이 준비되어 있어요. <button id="applyUpdate" class="secondary">업데이트 적용</button>';
+  reg.addEventListener('updatefound',()=>{
+   const worker=reg.installing;if(!worker)return;
+   worker.addEventListener('statechange',()=>{
+    if(worker.state==='installed'&&navigator.serviceWorker.controller){
+     $('updateNotice').innerHTML='새 버전이 준비되어 있어요. <button id="applyUpdate" class="secondary">업데이트 적용</button>';
+     const b=$('applyUpdate');if(b)b.onclick=()=>{worker.postMessage('SKIP_WAITING');location.reload()};
+    }
+   });
+  });
+  const b=$('applyUpdate');if(b)b.onclick=()=>{reg.waiting?.postMessage('SKIP_WAITING');location.reload()};
+  reg.update().catch(()=>{});
+ }).catch(()=>{});
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__dayflowReloading){window.__dayflowReloading=true;location.reload()}});
+}
+render();
+</script>
+</body></html>
