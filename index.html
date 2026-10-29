@@ -174,9 +174,18 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 
 // Cloud account sync: configure a Supabase project first (see SETUP_SYNC.txt).
 let supabaseClient=null, cloudUser=null, cloudReady=false, syncing=false;
+
 const CONFIG_KEY='dayflowSupabaseConfig';
+const SUPABASE_URL='https://qrpvtzufllhdmiaqwjgl.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='YOUR_SUPABASE_PUBLISHABLE_KEY';
+
 function cloudMessage(s){$('cloudStatus').textContent=s}
-function loadCloudConfig(){try{const c=JSON.parse(localStorage.getItem(CONFIG_KEY)||'{}');$('supabaseUrl').value=c.url||'';$('supabaseKey').value=c.key||''}catch{}}
+
+function loadCloudConfig(){
+  $('supabaseUrl').value=SUPABASE_URL;
+  $('supabaseKey').value=SUPABASE_PUBLISHABLE_KEY;
+}
+
 $('connectCloud').onclick=async()=>{
  const url=val('supabaseUrl').trim(),key=val('supabaseKey').trim();
  if(!/^https:\/\/.+\.supabase\.co\/?$/.test(url)||!key){cloudMessage('유효한 Supabase Project URL과 anon/publishable key를 입력해 주세요.');return}
@@ -215,6 +224,51 @@ const originalSave=save;
 save=function(){localStorage.setItem('dayflowTasks',JSON.stringify(tasks));localStorage.setItem('dayflowRoutines',JSON.stringify(routines));localStorage.setItem('dayflowReminders',JSON.stringify(reminders));render();if(cloudUser&&cloudReady)cloudPush()};
 
 loadCloudConfig();
+ 
+(async function autoConnectCloud(){
+  if(!window.supabase){
+    cloudMessage('Supabase 라이브러리를 불러오지 못했어요.');
+    return;
+  }
+
+  const url=SUPABASE_URL;
+  const key=SUPABASE_PUBLISHABLE_KEY;
+
+  if(!key || key==='YOUR_SUPABASE_PUBLISHABLE_KEY'){
+    cloudMessage('Supabase 공개 키 설정이 필요해요.');
+    return;
+  }
+
+  supabaseClient=window.supabase.createClient(url,key);
+  cloudReady=true;
+  $('authPanel').classList.remove('hidden');
+
+  const {data:{session},error}=await supabaseClient.auth.getSession();
+
+  if(error){
+    cloudMessage('로그인 상태 확인 실패: '+error.message);
+    return;
+  }
+
+  if(session){
+    cloudUser=session.user;
+    showSignedIn();
+    await cloudPull();
+  }else{
+    cloudMessage('클라우드 연결 완료! 로그인해 주세요.');
+  }
+
+  supabaseClient.auth.onAuthStateChange((_event,session)=>{
+    cloudUser=session?.user||null;
+    if(cloudUser){
+      showSignedIn();
+      setTimeout(()=>cloudPull(),0);
+    }else{
+      showSignedOut();
+    }
+  });
+})();
+
 // Data schema migrations: never clear user data on app version changes.
 const DATA_SCHEMA_VERSION=2;
 function migrateLocalData(){
