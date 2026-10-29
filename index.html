@@ -29,6 +29,16 @@ main{max-width:900px;margin:auto;padding:8px 14px 90px;display:grid;gap:14px}.ca
 
 <h3>☑️ 할 일</h3>
 <div id="todoTasks"></div>
+ 
+<div class="subject-manager" style="margin:12px 0">
+  <label for="newSubject">과목 추가</label>
+  <div class="row">
+    <input id="newSubject" placeholder="예: 수학, 영어, 역사">
+    <button id="addSubject" type="button">추가</button>
+  </div>
+  <div id="subjectList" style="margin-top:8px"></div>
+</div>
+
 </section>
 <section class="card wide" id="photoSection">
 <h2>📷 사진으로 일정 추가하기</h2>
@@ -125,6 +135,92 @@ let selected=iso(new Date()), viewDate=new Date(); viewDate.setDate(1);
 let tasks=JSON.parse(localStorage.getItem('dayflowTasks')||'[]');
 let routines=JSON.parse(localStorage.getItem('dayflowRoutines')||'[]');
 let reminders=JSON.parse(localStorage.getItem('dayflowReminders')||'[]');
+ 
+let subjects = JSON.parse(
+  localStorage.getItem('dayflowSubjects') || '["기타"]'
+);
+
+if (!subjects.includes('기타')) subjects.push('기타');
+
+function saveSubjects() {
+  localStorage.setItem('dayflowSubjects', JSON.stringify(subjects));
+}
+
+function renderSubjectManager() {
+  const box = $('subjectList');
+  if (!box) return;
+
+  box.innerHTML = '';
+
+  subjects.forEach(subject => {
+    const row = document.createElement('div');
+    row.className = 'task';
+
+    const name = document.createElement('div');
+    name.className = 'grow';
+    name.textContent = subject;
+
+    const edit = document.createElement('button');
+    edit.className = 'secondary';
+    edit.textContent = '이름 수정';
+    edit.onclick = () => {
+      const next = prompt('새 과목 이름을 입력해 주세요.', subject);
+      if (next === null) return;
+
+      const name = next.trim();
+      if (!name) return alert('과목 이름을 입력해 주세요.');
+      if (subjects.some(s => s !== subject && s === name)) {
+        return alert('이미 있는 과목 이름이에요.');
+      }
+
+      subjects = subjects.map(s => s === subject ? name : s);
+      tasks.forEach(t => {
+        if (t.subject === subject) t.subject = name;
+      });
+
+      saveSubjects();
+      save();
+      renderSubjectManager();
+    };
+
+    const remove = document.createElement('button');
+    remove.className = 'secondary';
+    remove.textContent = '삭제';
+    remove.onclick = () => {
+      if (subject === '기타') {
+        return alert('기본 과목인 기타는 삭제할 수 없어요.');
+      }
+      if (!confirm(`'${subject}' 과목을 삭제할까요? 해당 할 일은 기타로 이동해요.`)) return;
+
+      subjects = subjects.filter(s => s !== subject);
+      tasks.forEach(t => {
+        if (t.subject === subject) t.subject = '기타';
+      });
+
+      saveSubjects();
+      save();
+      renderSubjectManager();
+    };
+
+    row.append(name, edit, remove);
+    box.appendChild(row);
+  });
+}
+
+$('addSubject').onclick = () => {
+  const name = $('newSubject').value.trim();
+
+  if (!name) return alert('과목 이름을 입력해 주세요.');
+  if (subjects.includes(name)) return alert('이미 있는 과목이에요.');
+
+  subjects.push(name);
+  $('newSubject').value = '';
+  saveSubjects();
+  renderSubjectManager();
+};
+
+renderSubjectManager();
+
 const weekdays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 function save(){localStorage.setItem('dayflowTasks',JSON.stringify(tasks));localStorage.setItem('dayflowRoutines',JSON.stringify(routines));localStorage.setItem('dayflowReminders',JSON.stringify(reminders));render()}
 function enDate(date){return new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}
@@ -136,6 +232,7 @@ function renderCalendar(){
  for(let d=1;d<=days;d++){let key=iso(new Date(viewDate.getFullYear(),viewDate.getMonth(),d));let b=document.createElement('button');b.className='day'+(key===selected?' selected':'')+(key===iso(new Date())?' today':'')+(tasks.some(t=>t.date===key)?' has':'');b.textContent=d;b.onclick=()=>{selected=key;render()};$('calendar').appendChild(b)}
 }
 
+
 function renderTasks() {
   $('agendaTitle').textContent = enDate(selected);
 
@@ -145,53 +242,128 @@ function renderTasks() {
     .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   const dayTodos = dayItems.filter(t => t.type === 'todo');
 
-  function drawItems(items, containerId, isTodo) {
-    const container = $(containerId);
-    container.innerHTML = '';
+  function drawEvents(items) {
+    const box = $('tasks');
+    box.innerHTML = '';
 
     if (!items.length) {
-      container.innerHTML = '<div class="empty">' +
-        (isTodo ? '이 날짜에 할 일이 없어요.' : '이 날짜에 일정이 없어요.') +
-        '</div>';
+      box.innerHTML = '<div class="empty">이 날짜에 일정이 없어요.</div>';
       return;
     }
 
     items.forEach(t => {
       const el = document.createElement('div');
       el.className = 'task' + (t.done ? ' done' : '');
-
-      const timeLabel = isTodo ? '' :
-        `<div class="time">${formatTime(t.time)}</div>`;
-
       el.innerHTML = `
         <input type="checkbox" ${t.done ? 'checked' : ''} aria-label="완료">
-        ${timeLabel}
+        <div class="time">${formatTime(t.time)}</div>
         <div class="grow">
           <div class="tasktitle"></div>
-          <div class="meta">${!isTodo && t.duration ? t.duration + ' min' : ''}
-          ${t.source ? ' · ' + t.source : ''}</div>
+          <div class="meta">${t.duration || 0} min${t.source ? ' · ' + t.source : ''}</div>
         </div>
         <button class="secondary" style="padding:5px 9px">×</button>`;
 
       el.querySelector('.tasktitle').textContent = t.title;
-
       el.querySelector('input').onchange = e => {
         t.done = e.target.checked;
         save();
       };
-
       el.querySelector('button').onclick = () => {
         tasks = tasks.filter(x => x.id !== t.id);
         save();
       };
-
-      container.appendChild(el);
+      box.appendChild(el);
     });
   }
 
-  drawItems(dayEvents, 'tasks', false);
-  drawItems(dayTodos, 'todoTasks', true);
+  function drawTodos(items) {
+    const box = $('todoTasks');
+    box.innerHTML = '';
+
+    if (!items.length) {
+      box.innerHTML = '<div class="empty">이 날짜에 할 일이 없어요.</div>';
+      return;
+    }
+
+    const groups = [...subjects.filter(s => s !== '기타'), '기타'];
+
+    groups.forEach(subject => {
+      const groupItems = items.filter(t => (t.subject || '기타') === subject);
+      const section = document.createElement('div');
+      section.style.marginTop = '12px';
+
+      const heading = document.createElement('h3');
+      heading.textContent = subject;
+      section.appendChild(heading);
+
+      if (!groupItems.length) {
+        const empty = document.createElement('div');
+        empty.className = 'hint';
+        empty.textContent = '할 일이 없어요.';
+        section.appendChild(empty);
+      }
+
+      groupItems.forEach(t => {
+        const row = document.createElement('div');
+        row.className = 'task' + (t.done ? ' done' : '');
+
+        const check = document.createElement('input');
+        check.type = 'checkbox';
+        check.checked = !!t.done;
+        check.setAttribute('aria-label', '완료');
+        check.onchange = e => {
+          t.done = e.target.checked;
+          save();
+        };
+
+        const title = document.createElement('input');
+        title.value = t.title;
+        title.setAttribute('aria-label', '할 일 이름');
+        title.style.width = '100%';
+        title.onchange = () => {
+          t.title = title.value.trim() || t.title;
+          save();
+        };
+
+        const subjectSelect = document.createElement('select');
+        subjectSelect.setAttribute('aria-label', '과목 선택');
+        subjects.forEach(s => {
+          const option = document.createElement('option');
+          option.value = s;
+          option.textContent = s;
+          subjectSelect.appendChild(option);
+        });
+        subjectSelect.value = subjects.includes(t.subject) ? t.subject : '기타';
+        subjectSelect.onchange = () => {
+          t.subject = subjectSelect.value;
+          save();
+        };
+
+        const remove = document.createElement('button');
+        remove.className = 'secondary';
+        remove.textContent = '×';
+        remove.onclick = () => {
+          tasks = tasks.filter(x => x.id !== t.id);
+          save();
+        };
+
+        const content = document.createElement('div');
+        content.className = 'grow';
+        content.append(title, subjectSelect);
+
+        row.append(check, content, remove);
+        section.appendChild(row);
+      });
+
+      box.appendChild(section);
+    });
+  }
+
+  drawEvents(dayEvents);
+  drawTodos(dayTodos);
+  renderSubjectManager();
 }
+
 function formatTime(s){if(!s)return '';let [h,m]=s.split(':').map(Number);return `${h%12||12}:${pad(m)} ${h<12?'a.m.':'p.m.'}`}
 function render(){renderCalendar();renderTasks();renderReminders();renderRoutines()}
 function addTask(obj){tasks.push({id:Date.now()+Math.random(),done:false,source:'',...obj});save()}
